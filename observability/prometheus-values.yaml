@@ -1,0 +1,72 @@
+grafana:
+  enabled: true
+  adminPassword: neurokube123
+  service:
+    type: NodePort
+    nodePort: 30000
+
+# Prometheus Operator CRD requires >= 60 (chart default 0 fails admission on recent bundles).
+prometheus:
+  prometheusSpec:
+    maximumStartupDurationSeconds: 300
+
+# Alertmanager: merge kube-prometheus-stack defaults (null receiver, inhibit_rules, Watchdog → null) with NeuroKube webhook.
+# Do NOT set route.receiver to neurokube-webhook — that sends Watchdog/TargetDown/etc. to the brain and spams webhook failures.
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+    inhibit_rules:
+      - source_matchers:
+          - severity = critical
+        target_matchers:
+          - severity =~ warning|info
+        equal:
+          - namespace
+          - alertname
+      - source_matchers:
+          - severity = warning
+        target_matchers:
+          - severity = info
+        equal:
+          - namespace
+          - alertname
+      - source_matchers:
+          - alertname = InfoInhibitor
+        target_matchers:
+          - severity = info
+        equal:
+          - namespace
+      - target_matchers:
+          - alertname = InfoInhibitor
+    route:
+      group_by:
+        - namespace
+        - alertname
+        - pod
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: "null"
+      routes:
+        - receiver: "null"
+          matchers:
+            - alertname = Watchdog
+        - receiver: neurokube-webhook
+          matchers:
+            - alertname = KubePodCrashLooping
+        - receiver: neurokube-webhook
+          matchers:
+            - alertname = KubePodOOMKilled
+        - receiver: neurokube-webhook
+          matchers:
+            - alertname = KubeContainerOOMKilled
+    receivers:
+      - name: "null"
+      - name: neurokube-webhook
+        webhook_configs:
+          - url: "http://neurokube-brain.neurokube.svc.cluster.local:8080/alert"
+            send_resolved: false
+    templates:
+      - /etc/alertmanager/config/*.tmpl

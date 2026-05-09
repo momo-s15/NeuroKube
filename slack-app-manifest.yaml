@@ -1,0 +1,31 @@
+# Paste into Slack: api.slack.com/apps → Create New App → From an app manifest
+# Socket Mode uses an App-Level Token with scope connections:write (xapp-*), not an extra bot scope.
+# After create: Basic Information → Install to Workspace → copy Bot token (xoxb-*) → SLACK_BOT_TOKEN
+# Then: Settings → Socket Mode → generate app-level token with connections:write → SLACK_APP_TOKEN
+_metadata:
+  major_version: 2
+  minor_version: 1
+display_information:
+  name: NeuroKube
+  description: Local Kubernetes AIOps — Alertmanager alerts, Loki logs, Slack actions.
+  long_description: >
+    NeuroKube is a developer-workspace demo app. It sends rich Slack messages for Kubernetes
+    pod incidents (OOM and crash-loop style alerts), supports block-kit buttons over Socket Mode
+    instead of public HTTP URLs, and is not intended for the Slack Marketplace or production
+    multitenant deployments. Use a private dev Slack workspace only.
+  background_color: "#1a1f2e"
+features:
+  bot_user:
+    display_name: NeuroKube
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - chat:write.public
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false
+  interactivity:
+    is_enabled: true

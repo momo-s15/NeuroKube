@@ -1,0 +1,8 @@
+loki:
+  enabled: true
+  persistence:
+    enabled: false
+  # kube-prometheus-stack Grafana already marks Prometheus as default; Loki must not also be default.
+  isDefault: false
+promtail:
+  enabled: true

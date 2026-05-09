@@ -1,0 +1,19 @@
+# Scraped by Prometheus from kube-prometheus-stack when label matches the Helm release.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neurokube-brain
+  namespace: neurokube
+  labels:
+    release: kube-prom-stack
+spec:
+  selector:
+    matchLabels:
+      app: neurokube-brain
+  namespaceSelector:
+    matchNames:
+      - neurokube
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

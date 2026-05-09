@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+.env.k8s.tmp
+*.pem
+*.key
+
+*.exe
+brain/neurokube-brain
+brain/neurokube-brain.exe
+.idea/
+.vscode/
+*.log

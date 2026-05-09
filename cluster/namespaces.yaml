@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: neurokube
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring

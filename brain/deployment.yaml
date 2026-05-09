@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neurokube-brain
+  namespace: neurokube
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neurokube-brain
+  template:
+    metadata:
+      labels:
+        app: neurokube-brain
+    spec:
+      serviceAccountName: neurokube-brain-sa
+      containers:
+        - name: brain
+          image: neurokube-brain:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: neurokube-secrets
+          resources:
+            requests: { memory: "128Mi", cpu: "100m" }
+            limits: { memory: "256Mi", cpu: "500m" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neurokube-brain
+  namespace: neurokube
+  labels:
+    app: neurokube-brain
+spec:
+  selector:
+    app: neurokube-brain
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
