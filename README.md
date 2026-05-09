@@ -22,24 +22,7 @@ When Prometheus fires a workload alert, Alertmanager POSTs to a Go **brain** ser
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph monitoring [monitoring]
-    AM[Alertmanager]
-    Prom[Prometheus]
-    Loki[Loki]
-  end
-  subgraph neurokube [neurokube]
-    Brain[neurokube-brain]
-  end
-  Host[Ollama]
-  Slack[Slack]
-  AM -->|POST| Brain
-  Prom -->|scrape| Brain
-  Brain --> Loki
-  Brain --> Host
-  Brain --> Slack
-```
+![NeuroKube architecture: kind cluster with observability, neurokube-brain, Ollama on host, and Slack](diagram.png)
 
 **Flow in plain English:** an alert fires in Prometheus → **Alertmanager** routes OOM/crash-class alerts to the brain’s `/alert` URL → the brain loads recent lines from **Loki** for that pod → **Ollama** produces a diagnosis (root cause, evidence, suggested fix, optional new limit) → **Slack** shows a card with **Apply Patch** / **Dismiss** → **Apply Patch** runs a strategic-merge patch on the Deployment so the next rollout picks up a higher memory limit.
 
