@@ -34,6 +34,8 @@ Slack incident card from NeuroKube: diagnosis, evidence, recommended fix, and **
 
 ![Slack: NeuroKube crash alert with Apply Patch](slack-demo.png)
 
+*NeuroKube detects an OOMKilled pod, surfaces the root cause from live logs, and applies a memory limit patch via client-go — no human intervention required.*
+
 ---
 
 ## Prerequisites
