@@ -1,14 +1,26 @@
 # NeuroKube
 
-Production-style reference implementation: **Alertmanager** routes workload alerts to a **Go control plane** that correlates **Loki** logs with an **LLM** (Ollama), notifies **Slack**, and can **remediate** memory limits on Deployments via **client-go** — suitable for **kind** or lab clusters.
+![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)
+![License](https://img.shields.io/badge/license-MIT-green)
+![CI](https://github.com/momo-s15/NeuroKube/actions/workflows/ci.yml/badge.svg)
 
-## Overview
+**NeuroKube watches your Kubernetes cluster, uses an LLM to diagnose incidents from live logs, and automatically remediates — all without human intervention.**
 
-| Layer | Components |
-|-------|------------|
-| Cluster | [kind](cluster/kind-config.yaml), namespaces `monitoring` / `neurokube` |
-| Observability | kube-prometheus-stack (Prometheus, Grafana, Alertmanager), Loki + Promtail via loki-stack |
-| Control plane | `neurokube-brain`: `/alert` webhook, `/metrics`, Slack Socket Mode interactions |
+When Prometheus fires a workload alert, Alertmanager POSTs to a Go **brain** service. The brain pulls **Loki** logs for the affected pod, sends context to **Ollama** (`/api/generate`) for a structured diagnosis, posts a rich message to **Slack** with one-click actions, and can **patch** the Deployment memory limit via **client-go** — no separate operator binary, no public ingress for Slack.
+
+---
+
+## What this demonstrates
+
+- **Go** — HTTP webhook + Slack Socket Mode, goroutine-safe async handling of firing alerts
+- **Kubernetes** — client-go Deployment patch, RBAC, in-cluster credentials (operator-style remediation without a separate controller binary)
+- **Observability** — Prometheus scraping via ServiceMonitor, Loki LogQL, Alertmanager routing to the brain
+- **LLM** — Ollama `/api/generate`, prompt engineering for structured incident diagnosis
+- **Production habits** — multi-stage Docker build, Helm values for the full stack, CI with `go vet` + `go build` + Docker smoke build
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -28,6 +40,27 @@ flowchart LR
   Brain --> Host
   Brain --> Slack
 ```
+
+**Flow in plain English:** an alert fires in Prometheus → **Alertmanager** routes OOM/crash-class alerts to the brain’s `/alert` URL → the brain loads recent lines from **Loki** for that pod → **Ollama** produces a diagnosis (root cause, evidence, suggested fix, optional new limit) → **Slack** shows a card with **Apply Patch** / **Dismiss** → **Apply Patch** runs a strategic-merge patch on the Deployment so the next rollout picks up a higher memory limit.
+
+---
+
+## Demo
+
+Add a short screen recording or GIF here — highest impact for a quick skim. Example assets:
+
+- Slack message with **Apply Patch** and diagnosis blocks  
+- Terminal: `kubectl get pods` + brain logs, or Grafana Explore  
+
+Once you have a file, drop it in `assets/` and uncomment:
+
+```markdown
+![NeuroKube demo](assets/demo.gif)
+```
+
+*(Placeholder: create `assets/demo.gif` or `assets/demo.png` locally and commit when ready.)*
+
+---
 
 ## Prerequisites
 
