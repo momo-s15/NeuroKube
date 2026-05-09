@@ -30,18 +30,9 @@ When Prometheus fires a workload alert, Alertmanager POSTs to a Go **brain** ser
 
 ## Demo
 
-Add a short screen recording or GIF here — highest impact for a quick skim. Example assets:
+Slack incident card from NeuroKube: diagnosis, evidence, recommended fix, and **Apply Patch** / **Dismiss** actions.
 
-- Slack message with **Apply Patch** and diagnosis blocks  
-- Terminal: `kubectl get pods` + brain logs, or Grafana Explore  
-
-Once you have a file, drop it in `assets/` and uncomment:
-
-```markdown
-![NeuroKube demo](assets/demo.gif)
-```
-
-*(Placeholder: create `assets/demo.gif` or `assets/demo.png` locally and commit when ready.)*
+![Slack: NeuroKube crash alert with Apply Patch](slack-demo.png)
 
 ---
 
