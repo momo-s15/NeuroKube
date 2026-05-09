@@ -1,25 +1,29 @@
 # NeuroKube
 
-Demo stack: **Kubernetes (kind)** + **Prometheus / Grafana / Loki / Alertmanager** + a small **Go “brain”** that receives firing alerts, pulls **Loki** logs, asks **Ollama** for a structured diagnosis, posts to **Slack**, and can **patch** a Deployment memory limit from a button.
+Production-style reference implementation: **Alertmanager** routes workload alerts to a **Go control plane** that correlates **Loki** logs with an **LLM** (Ollama), notifies **Slack**, and can **remediate** memory limits on Deployments via **client-go** — suitable for **kind** or lab clusters.
 
-**Docs:** step-by-step checklist in [`neurokube_fromscratch.md`](neurokube_fromscratch.md) · deeper design in [`neurokube_blueprint.md`](neurokube_blueprint.md) · this repo’s run log in [`progress.md`](progress.md).
+## Overview
 
-## Architecture
+| Layer | Components |
+|-------|------------|
+| Cluster | [kind](cluster/kind-config.yaml), namespaces `monitoring` / `neurokube` |
+| Observability | kube-prometheus-stack (Prometheus, Grafana, Alertmanager), Loki + Promtail via loki-stack |
+| Control plane | `neurokube-brain`: `/alert` webhook, `/metrics`, Slack Socket Mode interactions |
 
 ```mermaid
 flowchart LR
-  subgraph monitoring [monitoring_namespace]
+  subgraph monitoring [monitoring]
     AM[Alertmanager]
     Prom[Prometheus]
     Loki[Loki]
   end
-  subgraph neurokube [neurokube_namespace]
+  subgraph neurokube [neurokube]
     Brain[neurokube-brain]
   end
-  Host[Ollama_on_host]
+  Host[Ollama]
   Slack[Slack]
-  AM -->|POST_/alert| Brain
-  Prom -->|scrape_/metrics| Brain
+  AM -->|POST| Brain
+  Prom -->|scrape| Brain
   Brain --> Loki
   Brain --> Host
   Brain --> Slack
@@ -27,66 +31,59 @@ flowchart LR
 
 ## Prerequisites
 
-- **Docker Desktop** (Windows/macOS) or Docker on Linux  
-- **kind**, **kubectl**, **Helm** (see [`progress.md`](progress.md) Part A for versions used)  
-- **Go** 1.22+ (for local builds / CI)  
-- **Ollama** on the host with a small model (e.g. `llama3.2:latest`)  
-- **Slack app** (bot token + Socket Mode app token) — use [`slack-app-manifest.yaml`](slack-app-manifest.yaml)
+- Docker (Desktop or Linux daemon)
+- **kubectl**, **kind**, **Helm** 3.x
+- **Go** 1.22+ (CI / local builds)
+- **Ollama** on the host with a pulled model (tag must match `OLLAMA_MODEL`)
+- Slack app: Bot User OAuth + Socket Mode app-level token ([`slack-app-manifest.yaml`](slack-app-manifest.yaml))
 
-## Quick start
+## Configuration
 
-1. Clone the repo and copy **`.env.example`** → **`.env`**. Fill **Slack** tokens and **`SLACK_CHANNEL`**. Set **`OLLAMA_MODEL`** to a model you actually pulled.  
-   - **Never commit `.env`.**  
-   - For pods on **Docker Desktop**, **`OLLAMA_URL=http://host.docker.internal:11434`** (already in `.env.example`).  
-   - On **Linux**, either set **`OLLAMA_URL`** to your host LAN IP or add **`hostAliases`** for `host.docker.internal` on the brain pod (see [`neurokube_fromscratch.md`](neurokube_fromscratch.md) Part T).
+1. Copy `.env.example` to `.env`. Set Slack tokens, channel, and `OLLAMA_MODEL`.
+2. Do not commit `.env`. Brain Deployment loads secrets from `neurokube-secrets`; `make brain-deploy` strips `KUBECONFIG` so the pod uses in-cluster credentials.
+3. **Docker Desktop:** use `OLLAMA_URL=http://host.docker.internal:11434` in `.env`.
+4. **Linux:** point `OLLAMA_URL` at the host routable from pods, or add `hostAliases` on the brain pod for `host.docker.internal` if your runtime supports it.
 
-2. **Cluster + observability + brain** (from repo root):
+Replace default Grafana credentials in [`observability/prometheus-values.yaml`](observability/prometheus-values.yaml) before any shared environment.
 
-   ```bash
-   make cluster-up
-   make obs-install
-   make brain-build
-   make brain-deploy
-   ```
+## Deploy
 
-   Or follow the Helm/kubectl sequence in **`neurokube_fromscratch.md`**.
+```bash
+make cluster-up
+make obs-install
+make brain-build
+make brain-deploy
+```
 
-3. **Grafana:** `http://localhost:30000` — default admin password is set in [`observability/prometheus-values.yaml`](observability/prometheus-values.yaml) (`neurokube123` in the reference setup).
+Grafana (reference install): NodePort **30000** — credentials from Helm values.
 
-4. **Synthetic alert** (tests brain + Slack + Ollama without waiting for Prometheus):
+## Validation
 
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts/post-synthetic-alert.ps1
-   ```
+- **Synthetic alert** (no Prometheus dependency):
 
-5. **Optional real OOM path:** apply [`victim/deployment-oom.yaml`](victim/deployment-oom.yaml) so the stress sidecar runs as PID 1 and exceeds its memory limit; watch Alertmanager and Slack. Revert with **`kubectl apply -f victim/deployment.yaml`**.
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts/post-synthetic-alert.ps1
+  ```
 
-## Make targets
+- **Workload stress:** `make demo` or `bash victim/stress-test.sh`
+- **Stronger OOM signal:** `make demo-oom` applies [`victim/deployment-oom.yaml`](victim/deployment-oom.yaml); revert with `kubectl apply -f victim/deployment.yaml`
 
-| Target | Purpose |
-|--------|---------|
-| `make cluster-up` | `kind create` from [`cluster/kind-config.yaml`](cluster/kind-config.yaml) |
-| `make obs-install` | Helm install kube-prometheus-stack + loki-stack |
-| `make brain-build` | `docker build` + `kind load` brain image |
-| `make brain-deploy` | Namespace, Secret (`.env` minus `KUBECONFIG`), RBAC, brain + ServiceMonitor, victim |
-| `make demo` | Bash [`victim/stress-test.sh`](victim/stress-test.sh) (Git Bash / WSL on Windows) |
-| `make logs` | Tail brain logs |
-| `make clean` | Delete kind cluster + local image |
+## Loki queries
 
-## Repo layout
+The brain queries `{namespace="<ns>", pod="<name>"}` then falls back to `pod_name` if streams use that label (Promtail/chart variants).
 
-| Path | Purpose |
-|------|---------|
-| [`brain/`](brain/) | Go module: HTTP `/alert`, `/metrics`, Loki + Ollama + Slack + patch |
-| [`cluster/`](cluster/) | kind config, namespaces |
-| [`observability/`](observability/) | Prometheus stack + Loki Helm values |
-| [`victim/`](victim/) | Sample workload (`nginx` + `stress`) |
-| [`scripts/`](scripts/) | Helper scripts (e.g. synthetic alert) |
-| [`docs/loki-labels.md`](docs/loki-labels.md) | Loki label keys (`pod` vs `pod_name`) |
+## Repository layout
+
+| Path | Role |
+|------|------|
+| `brain/` | Go service: webhook, metrics, Loki, LLM, Slack, Deployment patch |
+| `cluster/` | kind config, namespaces |
+| `observability/` | Prometheus stack + Loki Helm values |
+| `victim/` | Sample Deployment for incident simulation |
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs **`go vet`**, **`go build`** on `brain/`, and a **`docker build`** smoke check.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml): `go vet`, `go build`, Docker image build (no push).
 
 ## License
 

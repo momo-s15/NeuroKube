@@ -12,3 +12,7 @@ brain/neurokube-brain.exe
 .idea/
 .vscode/
 *.log
+
+# Local notes / drafts (keep out of remote)
+progress.md
+*-personal.md
